@@ -3,111 +3,116 @@
 <head>
   <meta charset="UTF-8">
   <title>Árvore Genealógica</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { font-family: sans-serif; background: #f8f8f8; padding: 20px; }
-    .person { margin: 5px 0; padding: 10px; border: 1px solid #ccc; background: #fff; border-radius: 5px; }
-    .children, .relationship-children { margin-left: 20px; display: none; }
-    .toggle-btn { cursor: pointer; color: blue; text-decoration: underline; }
-    .relationship { margin-left: 10px; margin-top: 5px; padding-left: 10px; border-left: 2px dashed #aaa; }
-    img { max-width: 50px; border-radius: 50%; vertical-align: middle; margin-right: 10px; }
+    body { font-family: sans-serif; background: #f9f9f9; margin: 0; padding: 0; }
+    svg { width: 100%; height: 100vh; }
+    .node circle { fill: #91caff; stroke: steelblue; stroke-width: 2px; }
+    .node text { font-size: 12px; fill: #333; }
+    .link { fill: none; stroke: #999; stroke-width: 1.5px; }
   </style>
 </head>
 <body>
-  <h1>Árvore Genealógica</h1>
-  <div id="tree"></div>
-
+  <svg></svg>
   <script>
-    // 2. Dados da árvore (pode ser movido para JSON externo futuramente)
-    const treeData = {
-      nome: "João (bisavô)",
-      foto: "joao.jpg",
-      nascimento: "1880",
-      falecimento: "1955",
-      documentos: [{ nome: "Certidão", link: "certidao-joao.pdf" }],
-      relacionamentos: [
-        {
-          conjuge: "Maria",
-          filhos: [
-            { nome: "Pedro", nascimento: "1905", filhos: [] },
-            { nome: "Ana", nascimento: "1907", filhos: [] }
-          ]
-        },
-        {
-          conjuge: "Luiza",
-          filhos: [
-            { nome: "Carlos", nascimento: "1910", filhos: [] }
-          ]
-        },
-        {
-          conjuge: "Beatriz",
-          filhos: [
-            {
-              nome: "José (avô)",
-              nascimento: "1915",
-              filhos: [
-                { nome: "Filho 1", nascimento: "1940", filhos: [] },
-                { nome: "Filho 2", nascimento: "1942", filhos: [] },
-                // Adicione até 14 filhos aqui
-              ]
-            }
-          ]
-        }
-      ]
-    };
-
-    // 3. Renderização da árvore
-    function renderPerson(pessoa) {
-      const el = document.createElement("div");
-      el.className = "person";
-
-      const temRelacionamentos = pessoa.relacionamentos && pessoa.relacionamentos.length > 0;
-      const temFilhos = pessoa.filhos && pessoa.filhos.length > 0;
-
-      el.innerHTML = `
-        ${pessoa.foto ? `<img src="${pessoa.foto}" alt="${pessoa.nome}">` : ""}
-        <strong>${pessoa.nome}</strong> ${pessoa.nascimento ? `(${pessoa.nascimento}${pessoa.falecimento ? '–' + pessoa.falecimento : ''})` : ''}
-        ${pessoa.documentos ? pessoa.documentos.map(doc => `<a href="${doc.link}" target="_blank">[${doc.nome}]</a>`).join(' ') : ''}
-        ${(temRelacionamentos || temFilhos) ? `<div class="toggle-btn">[+]</div>` : ""}
-      `;
-
-      if (temRelacionamentos || temFilhos) {
-        const childrenContainer = document.createElement("div");
-        childrenContainer.className = temRelacionamentos ? "children" : "relationship-children";
-
-        if (temRelacionamentos) {
-          pessoa.relacionamentos.forEach(rel => {
-            const relDiv = document.createElement("div");
-            relDiv.className = "relationship";
-            relDiv.innerHTML = `<strong>Cônjuge:</strong> ${rel.conjuge}`;
-            const filhosDiv = document.createElement("div");
-            filhosDiv.className = "relationship-children";
-            rel.filhos.forEach(filho => filhosDiv.appendChild(renderPerson(filho)));
-            relDiv.appendChild(filhosDiv);
-            childrenContainer.appendChild(relDiv);
-          });
-        } else if (temFilhos) {
-          pessoa.filhos.forEach(filho => childrenContainer.appendChild(renderPerson(filho)));
-        }
-
-        el.appendChild(childrenContainer);
-
-        // Botão de expandir
-        const toggleBtn = el.querySelector(".toggle-btn");
-        toggleBtn.addEventListener("click", () => {
-          if (childrenContainer.style.display === "none") {
-            childrenContainer.style.display = "block";
-            toggleBtn.textContent = "[–]";
-          } else {
-            childrenContainer.style.display = "none";
-            toggleBtn.textContent = "[+]";
+    // === JSON da árvore genealógica ===
+    const rawData = [
+      {
+        nome: "Berta Seling",
+        relacionamentos: [
+          {
+            conjuge: "Willy Fischoeder",
+            filhos: ["Judite Fischoeder", "Willy Fischoeder Junior", "Osvaldo Fischoeder"]
+          },
+          {
+            conjuge: "Ernesto Meding",
+            filhos: ["Ernesto Seling", "Ernestina Meding"]
           }
-        });
+        ]
+      },
+      {
+        nome: "Ernesto Seling",
+        relacionamentos: [
+          {
+            conjuge: "Ilda Pinto",
+            filhos: ["Osvaldo Seling", "Berta Seling", "Orlando Seling", "Selma Seling"]
+          }
+        ]
+      },
+      {
+        nome: "Osvaldo Seling",
+        relacionamentos: [
+          {
+            conjuge: "Gladis dos Santos",
+            filhos: ["Jerson Seling", "Jacson Seling"]
+          }
+        ]
       }
+    ];
 
-      return el;
+    // === Constrói árvore hierárquica a partir dos relacionamentos ===
+    const pessoas = {};
+
+    // Cria nós individuais
+    function getPessoa(nome) {
+      if (!pessoas[nome]) pessoas[nome] = { name: nome, children: [] };
+      return pessoas[nome];
     }
 
-    document.getElementById("tree").appendChild(renderPerson(treeData));
+    // Conecta relacionamentos
+    rawData.forEach(p => {
+      const pai = getPessoa(p.nome);
+      p.relacionamentos.forEach(rel => {
+        const mae = getPessoa(rel.conjuge);
+        const casal = { name: `${p.nome} + ${rel.conjuge}`, children: [] };
+
+        rel.filhos.forEach(filho => {
+          const filhoNode = getPessoa(filho);
+          casal.children.push(filhoNode);
+        });
+
+        pai.children.push(casal);
+      });
+    });
+
+    // === Define a raiz da árvore manualmente (ajustável) ===
+    const root = d3.hierarchy(pessoas["Berta Seling"]);
+
+    // === Configurações da árvore D3 ===
+    const svg = d3.select("svg");
+    const margin = { top: 20, right: 100, bottom: 20, left: 100 };
+    const width = window.innerWidth - margin.left - margin.right;
+    const height = window.innerHeight - margin.top - margin.bottom;
+
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+    const treeLayout = d3.tree().size([height, width]);
+    treeLayout(root);
+
+    // Linhas
+    g.selectAll(".link")
+      .data(root.links())
+      .enter()
+      .append("path")
+      .attr("class", "link")
+      .attr("d", d3.linkHorizontal()
+        .x(d => d.y)
+        .y(d => d.x));
+
+    // Nós
+    const node = g.selectAll(".node")
+      .data(root.descendants())
+      .enter()
+      .append("g")
+      .attr("class", "node")
+      .attr("transform", d => `translate(${d.y},${d.x})`);
+
+    node.append("circle").attr("r", 5);
+
+    node.append("text")
+      .attr("dy", 3)
+      .attr("x", d => d.children ? -10 : 10)
+      .style("text-anchor", d => d.children ? "end" : "start")
+      .text(d => d.data.name);
   </script>
 </body>
 </html>
