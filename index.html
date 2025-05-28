@@ -5,9 +5,9 @@
   <title>Árvore Genealógica</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { font-family: sans-serif; background: #f9f9f9; margin: 0; padding: 0; }
+    body { font-family: sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
     svg { width: 100%; height: 100vh; }
-    .node circle { fill: #91caff; stroke: steelblue; stroke-width: 2px; }
+    .node circle { fill: #91caff; stroke: steelblue; stroke-width: 1.5px; }
     .node text { font-size: 12px; fill: #333; }
     .link { fill: none; stroke: #999; stroke-width: 1.5px; }
   </style>
@@ -15,8 +15,8 @@
 <body>
   <svg></svg>
   <script>
-    // === JSON da árvore genealógica ===
-    const rawData = [
+    // === Dados base em formato compacto ===
+    const dados = [
       {
         nome: "Berta Seling",
         relacionamentos: [
@@ -50,35 +50,38 @@
       }
     ];
 
-    // === Constrói árvore hierárquica a partir dos relacionamentos ===
-    const pessoas = {};
-
-    // Cria nós individuais
-    function getPessoa(nome) {
-      if (!pessoas[nome]) pessoas[nome] = { name: nome, children: [] };
-      return pessoas[nome];
-    }
-
-    // Conecta relacionamentos
-    rawData.forEach(p => {
-      const pai = getPessoa(p.nome);
-      p.relacionamentos.forEach(rel => {
-        const mae = getPessoa(rel.conjuge);
-        const casal = { name: `${p.nome} + ${rel.conjuge}`, children: [] };
-
+    // === Constrói índice de filhos ===
+    const filhosPorPessoa = {};
+    dados.forEach(pessoa => {
+      pessoa.relacionamentos.forEach(rel => {
         rel.filhos.forEach(filho => {
-          const filhoNode = getPessoa(filho);
-          casal.children.push(filhoNode);
+          if (!filhosPorPessoa[pessoa.nome]) filhosPorPessoa[pessoa.nome] = [];
+          filhosPorPessoa[pessoa.nome].push({ nome: filho, pais: [pessoa.nome, rel.conjuge] });
         });
-
-        pai.children.push(casal);
       });
     });
 
-    // === Define a raiz da árvore manualmente (ajustável) ===
-    const root = d3.hierarchy(pessoas["Berta Seling"]);
+    // === Constrói árvore recursiva a partir de uma pessoa ===
+    function construirArvore(nome, visitados = new Set()) {
+      if (visitados.has(nome)) return null; // evita loops
+      visitados.add(nome);
 
-    // === Configurações da árvore D3 ===
+      const node = { name: nome, children: [] };
+
+      const filhos = filhosPorPessoa[nome] || [];
+      filhos.forEach(f => {
+        const filhoNode = construirArvore(f.nome, new Set(visitados));
+        if (filhoNode) node.children.push(filhoNode);
+      });
+
+      return node;
+    }
+
+    // === Raiz da árvore: Berta Seling ===
+    const arvore = construirArvore("Berta Seling");
+
+    // === D3: desenha a árvore ===
+    const root = d3.hierarchy(arvore);
     const svg = d3.select("svg");
     const margin = { top: 20, right: 100, bottom: 20, left: 100 };
     const width = window.innerWidth - margin.left - margin.right;
@@ -88,7 +91,6 @@
     const treeLayout = d3.tree().size([height, width]);
     treeLayout(root);
 
-    // Linhas
     g.selectAll(".link")
       .data(root.links())
       .enter()
@@ -98,7 +100,6 @@
         .x(d => d.y)
         .y(d => d.x));
 
-    // Nós
     const node = g.selectAll(".node")
       .data(root.descendants())
       .enter()
@@ -107,7 +108,6 @@
       .attr("transform", d => `translate(${d.y},${d.x})`);
 
     node.append("circle").attr("r", 5);
-
     node.append("text")
       .attr("dy", 3)
       .attr("x", d => d.children ? -10 : 10)
