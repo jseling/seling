@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Árvore Genealógica</title>
+  <style>
+    body { font-family: sans-serif; background: #f8f8f8; padding: 20px; }
+    .person { margin: 5px 0; padding: 10px; border: 1px solid #ccc; background: #fff; border-radius: 5px; }
+    .children, .relationship-children { margin-left: 20px; display: none; }
+    .toggle-btn { cursor: pointer; color: blue; text-decoration: underline; }
+    .relationship { margin-left: 10px; margin-top: 5px; padding-left: 10px; border-left: 2px dashed #aaa; }
+    img { max-width: 50px; border-radius: 50%; vertical-align: middle; margin-right: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Árvore Genealógica</h1>
+  <div id="tree"></div>
+
+  <script>
+    // 2. Dados da árvore (pode ser movido para JSON externo futuramente)
+    const treeData = {
+      nome: "João (bisavô)",
+      foto: "joao.jpg",
+      nascimento: "1880",
+      falecimento: "1955",
+      documentos: [{ nome: "Certidão", link: "certidao-joao.pdf" }],
+      relacionamentos: [
+        {
+          conjuge: "Maria",
+          filhos: [
+            { nome: "Pedro", nascimento: "1905", filhos: [] },
+            { nome: "Ana", nascimento: "1907", filhos: [] }
+          ]
+        },
+        {
+          conjuge: "Luiza",
+          filhos: [
+            { nome: "Carlos", nascimento: "1910", filhos: [] }
+          ]
+        },
+        {
+          conjuge: "Beatriz",
+          filhos: [
+            {
+              nome: "José (avô)",
+              nascimento: "1915",
+              filhos: [
+                { nome: "Filho 1", nascimento: "1940", filhos: [] },
+                { nome: "Filho 2", nascimento: "1942", filhos: [] },
+                // Adicione até 14 filhos aqui
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // 3. Renderização da árvore
+    function renderPerson(pessoa) {
+      const el = document.createElement("div");
+      el.className = "person";
+
+      const temRelacionamentos = pessoa.relacionamentos && pessoa.relacionamentos.length > 0;
+      const temFilhos = pessoa.filhos && pessoa.filhos.length > 0;
+
+      el.innerHTML = `
+        ${pessoa.foto ? `<img src="${pessoa.foto}" alt="${pessoa.nome}">` : ""}
+        <strong>${pessoa.nome}</strong> ${pessoa.nascimento ? `(${pessoa.nascimento}${pessoa.falecimento ? '–' + pessoa.falecimento : ''})` : ''}
+        ${pessoa.documentos ? pessoa.documentos.map(doc => `<a href="${doc.link}" target="_blank">[${doc.nome}]</a>`).join(' ') : ''}
+        ${(temRelacionamentos || temFilhos) ? `<div class="toggle-btn">[+]</div>` : ""}
+      `;
+
+      if (temRelacionamentos || temFilhos) {
+        const childrenContainer = document.createElement("div");
+        childrenContainer.className = temRelacionamentos ? "children" : "relationship-children";
+
+        if (temRelacionamentos) {
+          pessoa.relacionamentos.forEach(rel => {
+            const relDiv = document.createElement("div");
+            relDiv.className = "relationship";
+            relDiv.innerHTML = `<strong>Cônjuge:</strong> ${rel.conjuge}`;
+            const filhosDiv = document.createElement("div");
+            filhosDiv.className = "relationship-children";
+            rel.filhos.forEach(filho => filhosDiv.appendChild(renderPerson(filho)));
+            relDiv.appendChild(filhosDiv);
+            childrenContainer.appendChild(relDiv);
+          });
+        } else if (temFilhos) {
+          pessoa.filhos.forEach(filho => childrenContainer.appendChild(renderPerson(filho)));
+        }
+
+        el.appendChild(childrenContainer);
+
+        // Botão de expandir
+        const toggleBtn = el.querySelector(".toggle-btn");
+        toggleBtn.addEventListener("click", () => {
+          if (childrenContainer.style.display === "none") {
+            childrenContainer.style.display = "block";
+            toggleBtn.textContent = "[–]";
+          } else {
+            childrenContainer.style.display = "none";
+            toggleBtn.textContent = "[+]";
+          }
+        });
+      }
+
+      return el;
+    }
+
+    document.getElementById("tree").appendChild(renderPerson(treeData));
+  </script>
+</body>
+</html>
