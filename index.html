@@ -5,36 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Árvore Genealógica</title>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-            background-color: white !important; /* Força fundo branco */
+            box-sizing: border-box;
         }
         
-        #container {
-            width: 100vw;
+        body {
+            overflow: hidden;
+            touch-action: none;
+            background-color: white !important;
             height: 100vh;
-            overflow: hidden;
-            background-color: white !important; /* Força fundo branco */
-            position: relative;
+            width: 100vw;
         }
         
-        #panzoom-container {
+        #viewer-container {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            touch-action: none; /* Importante para mobile */
-            background-color: white !important; /* Força fundo branco */
+            background-color: white !important;
+        }
+        
+        #svg-wrapper {
+            position: absolute;
+            transform-origin: 0 0;
+            will-change: transform;
         }
         
         #svg-image {
             display: block;
+            background-color: white !important;
+            width: auto;
+            height: auto;
             max-width: none;
-            transform-origin: 0 0;
-            background-color: white !important; /* Força fundo branco */
-            position: absolute;
         }
         
         .controls {
@@ -48,13 +54,13 @@
         }
         
         .control-btn {
-            width: 40px;
-            height: 40px;
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
             background-color: white;
-            border: 1px solid #ccc;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            font-size: 20px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 22px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -64,137 +70,156 @@
     </style>
 </head>
 <body>
-    <div id="container">
-        <div id="panzoom-container">
-            <!-- Adicionado inline style para garantir fundo branco -->
-            <img id="svg-image" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica" style="background-color: white !important;">
-        </div>
-        
-        <div class="controls">
-            <div class="control-btn" id="zoom-in">+</div>
-            <div class="control-btn" id="zoom-out">-</div>
-            <div class="control-btn" id="reset">↻</div>
+    <div id="viewer-container">
+        <div id="svg-wrapper">
+            <img id="svg-image" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica">
         </div>
     </div>
 
-    <!-- Usando a biblioteca panzoom com fallback local -->
-    <script src="https://cdn.jsdelivr.net/npm/panzoom@9.4.3/dist/panzoom.min.js"></script>
+    <div class="controls">
+        <div class="control-btn" id="zoom-in">+</div>
+        <div class="control-btn" id="zoom-out">−</div>
+        <div class="control-btn" id="reset">↻</div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const wrapper = document.getElementById('svg-wrapper');
             const image = document.getElementById('svg-image');
-            const container = document.getElementById('panzoom-container');
-            const mainContainer = document.getElementById('container');
+            const container = document.getElementById('viewer-container');
             
-            // Configuração inicial quando a imagem carregar
+            let scale = 1;
+            let posX = 0;
+            let posY = 0;
+            let isDragging = false;
+            let startX, startY;
+            
+            // Função para aplicar transformações
+            function applyTransform() {
+                wrapper.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+            }
+            
+            // Centraliza a imagem quando carregada
             image.onload = function() {
-                // Força fundo branco no SVG (se for vetor)
-                if (image.contentDocument) {
-                    const svg = image.contentDocument.querySelector('svg');
-                    if (svg) {
-                        svg.style.backgroundColor = 'white';
-                    }
+                // Calcula o zoom inicial para caber na tela
+                const imgRatio = image.naturalWidth / image.naturalHeight;
+                const containerRatio = container.clientWidth / container.clientHeight;
+                
+                if (imgRatio > containerRatio) {
+                    scale = container.clientWidth / image.naturalWidth * 0.95;
+                } else {
+                    scale = container.clientHeight / image.naturalHeight * 0.95;
                 }
                 
-                // Inicializa o panzoom com configurações robustas
-                const instance = panzoom(image, {
-                    maxZoom: 10,
-                    minZoom: 0.1,
-                    initialZoom: 1,
-                    bounds: true,
-                    boundsPadding: 0.1,
-                    smoothScroll: false,
-                    // Configurações para desktop
-                    beforeMouseDown: function(e) {
-                        // Permite arrastar apenas quando clicar na imagem
-                        return e.target === image;
-                    },
-                    // Configurações para mobile
-                    beforeTouchStart: function(e) {
-                        // Permite toque apenas na imagem
-                        return e.target === image;
-                    },
-                    // Configurações para zoom com roda
-                    beforeWheel: function(e) {
-                        // Permite zoom com roda em qualquer lugar
-                        return true;
-                    },
-                    filterKey: function() {
-                        // Permite todos os eventos de teclado
-                        return true;
-                    }
-                });
+                // Centraliza a imagem
+                posX = (container.clientWidth - image.naturalWidth * scale) / 2;
+                posY = (container.clientHeight - image.naturalHeight * scale) / 2;
                 
-                // Ajusta o zoom inicial para caber na tela e centralizar
-                setTimeout(() => {
-                    const imgRatio = image.naturalWidth / image.naturalHeight;
-                    const containerRatio = container.clientWidth / container.clientHeight;
-                    
-                    let initialZoom;
-                    if (imgRatio > containerRatio) {
-                        initialZoom = container.clientWidth / image.naturalWidth * 0.95;
-                    } else {
-                        initialZoom = container.clientHeight / image.naturalHeight * 0.95;
-                    }
-                    
-                    // Centraliza a imagem
-                    const initialX = (container.clientWidth - image.naturalWidth * initialZoom) / 2;
-                    const initialY = (container.clientHeight - image.naturalHeight * initialZoom) / 2;
-                    
-                    instance.moveTo(initialX, initialY);
-                    instance.zoomAbs(container.clientWidth/2, container.clientHeight/2, initialZoom);
-                }, 100);
-                
-                // Configura os controles
-                document.getElementById('zoom-in').addEventListener('click', function() {
-                    instance.smoothZoom(container.clientWidth/2, container.clientHeight/2, 1.2);
-                });
-                
-                document.getElementById('zoom-out').addEventListener('click', function() {
-                    instance.smoothZoom(container.clientWidth/2, container.clientHeight/2, 0.8);
-                });
-                
-                document.getElementById('reset').addEventListener('click', function() {
-                    const imgRatio = image.naturalWidth / image.naturalHeight;
-                    const containerRatio = container.clientWidth / container.clientHeight;
-                    
-                    let resetZoom;
-                    if (imgRatio > containerRatio) {
-                        resetZoom = container.clientWidth / image.naturalWidth * 0.95;
-                    } else {
-                        resetZoom = container.clientHeight / image.naturalHeight * 0.95;
-                    }
-                    
-                    const resetX = (container.clientWidth - image.naturalWidth * resetZoom) / 2;
-                    const resetY = (container.clientHeight - image.naturalHeight * resetZoom) / 2;
-                    
-                    instance.moveTo(resetX, resetY);
-                    instance.zoomAbs(container.clientWidth/2, container.clientHeight/2, resetZoom);
-                });
-                
-                // Correção para desktop - garante que os eventos são capturados
-                container.addEventListener('mousedown', function(e) {
-                    if (e.target === container) {
-                        e.preventDefault();
-                    }
-                });
-                
-                // Correção para mobile
-                container.addEventListener('touchstart', function(e) {
-                    if (e.target === container) {
-                        e.preventDefault();
-                    }
-                }, { passive: false });
+                applyTransform();
             };
             
-            // Previne o comportamento padrão de arrastar imagens
-            image.addEventListener('dragstart', function(e) {
+            // Controles de zoom
+            document.getElementById('zoom-in').addEventListener('click', function() {
+                zoom(1.2, container.clientWidth/2, container.clientHeight/2);
+            });
+            
+            document.getElementById('zoom-out').addEventListener('click', function() {
+                zoom(0.8, container.clientWidth/2, container.clientHeight/2);
+            });
+            
+            document.getElementById('reset').addEventListener('click', function() {
+                const imgRatio = image.naturalWidth / image.naturalHeight;
+                const containerRatio = container.clientWidth / container.clientHeight;
+                
+                if (imgRatio > containerRatio) {
+                    scale = container.clientWidth / image.naturalWidth * 0.95;
+                } else {
+                    scale = container.clientHeight / image.naturalHeight * 0.95;
+                }
+                
+                posX = (container.clientWidth - image.naturalWidth * scale) / 2;
+                posY = (container.clientHeight - image.naturalHeight * scale) / 2;
+                
+                applyTransform();
+            });
+            
+            // Função de zoom com ponto focal
+            function zoom(zoomFactor, centerX, centerY) {
+                // Calcula a posição relativa ao centro de zoom
+                const x = (centerX - posX) / scale;
+                const y = (centerY - posY) / scale;
+                
+                // Aplica o zoom
+                scale *= zoomFactor;
+                scale = Math.max(0.1, Math.min(scale, 10)); // Limites de zoom
+                
+                // Ajusta a posição para zoom no ponto focal
+                posX = centerX - x * scale;
+                posY = centerY - y * scale;
+                
+                applyTransform();
+            }
+            
+            // Controle de arrastar (pan) com mouse
+            container.addEventListener('mousedown', function(e) {
+                if (e.button !== 0) return;
+                isDragging = true;
+                startX = e.clientX - posX;
+                startY = e.clientY - posY;
+                container.style.cursor = 'grabbing';
                 e.preventDefault();
             });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                posX = e.clientX - startX;
+                posY = e.clientY - startY;
+                applyTransform();
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isDragging = false;
+                container.style.cursor = 'grab';
+            });
+            
+            // Controle de arrastar (pan) com toque
+            container.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    startX = e.touches[0].clientX - posX;
+                    startY = e.touches[0].clientY - posY;
+                }
+                e.preventDefault();
+            }, { passive: false });
+            
+            container.addEventListener('touchmove', function(e) {
+                if (!isDragging || e.touches.length !== 1) return;
+                posX = e.touches[0].clientX - startX;
+                posY = e.touches[0].clientY - startY;
+                applyTransform();
+                e.preventDefault();
+            }, { passive: false });
+            
+            container.addEventListener('touchend', function() {
+                isDragging = false;
+            });
+            
+            // Zoom com roda do mouse
+            container.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = -Math.sign(e.deltaY);
+                const zoomFactor = delta > 0 ? 1.1 : 0.9;
+                zoom(zoomFactor, e.clientX, e.clientY);
+            }, { passive: false });
             
             // Fallback se a imagem já estiver carregada
             if (image.complete && image.naturalWidth !== 0) {
                 image.onload();
             }
+            
+            // Inicializa cursor
+            container.style.cursor = 'grab';
         });
     </script>
 </body>
