@@ -1,54 +1,171 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Árvore Genealógica Seling</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      height: 100%;
-      width: 100%;
-    }
-    #wrapper {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      touch-action: none;
-      background-color: #f0f0f0;
-    }
-    #zoom-target {
-      display: block;
-      max-width: none;
-      max-height: none;
-      user-select: none;
-      pointer-events: auto;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Árvore Genealógica</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: none;
+            font-family: Arial, sans-serif;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #f0f0f0;
+        }
+        
+        #svg-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #svg-content {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(255,255,255,0.8);
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
-  <div id="wrapper">
-    <img id="zoom-target" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica">
-  </div>
+    <div id="container">
+        <div id="svg-container">
+            <object id="svg-content" type="image/svg+xml" data="ArvoreGenealogica-bube-ilda-netos.drawio.svg"></object>
+        </div>
+        
+        <div class="controls">
+            <div class="control-btn" id="zoom-in">+</div>
+            <div class="control-btn" id="zoom-out">-</div>
+            <div class="control-btn" id="reset">↻</div>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">Carregando...</div>
 
-  <script src="https://unpkg.com/@panzoom/panzoom@9.4.0/dist/panzoom.min.js"></script>
-  <script>
-    const img = document.getElementById('zoom-target');
-    const panzoom = Panzoom(img, {
-      maxScale: 5,
-      minScale: 0.1,
-      contain: 'outside'
-    });
-
-    // Permitir zoom com scroll do mouse
-    img.parentElement.addEventListener('wheel', panzoom.zoomWithWheel);
-
-    // Zoom inicial para ajustar à tela
-    window.addEventListener('load', () => {
-      panzoom.zoom(0.25, { animate: true }); // Ajuste conforme o tamanho da sua imagem
-    });
-  </script>
+    <script src="https://unpkg.com/panzoom@9.4.0/dist/panzoom.min.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const loadingElement = document.getElementById('loading');
+    const svgObject = document.getElementById('svg-content');
+    const container = document.getElementById('container');
+    const svgContainer = document.getElementById('svg-container');
+    
+    // Função para inicializar o panzoom após o SVG carregar
+    function initPanzoom() {
+        // Obtém o elemento SVG interno do objeto
+        const svgElement = svgObject.contentDocument.querySelector('svg');
+        
+        // Configura o SVG para ocupar todo o espaço necessário
+        svgElement.style.maxWidth = 'none';
+        svgElement.style.maxHeight = 'none';
+        
+        // Cria a instância do panzoom
+        const panzoom = Panzoom(svgElement, {
+            maxScale: 10,
+            minScale: 0.1,
+            duration: 200,
+            easing: 'ease-out',
+            contain: 'outside',
+            startScale: 1,
+            // Configurações para touch
+            touchAction: 'none',
+            disablePan: false,
+            disableZoom: false
+        });
+        
+        // Adiciona eventos de zoom com a roda do mouse
+        svgContainer.addEventListener('wheel', panzoom.zoomWithWheel);
+        
+        // Configura os botões de controle
+        document.getElementById('zoom-in').addEventListener('click', function() {
+            panzoom.zoom(1.2, { animate: true });
+        });
+        
+        document.getElementById('zoom-out').addEventListener('click', function() {
+            panzoom.zoom(0.8, { animate: true });
+        });
+        
+        document.getElementById('reset').addEventListener('click', function() {
+            panzoom.reset({ animate: true });
+        });
+        
+        // Esconde o loading
+        loadingElement.style.display = 'none';
+        
+        // Ajusta o zoom inicial para caber na tela
+        setTimeout(() => {
+            const svgRect = svgElement.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            const scaleX = containerRect.width / svgRect.width;
+            const scaleY = containerRect.height / svgRect.height;
+            const initialScale = Math.min(scaleX, scaleY) * 0.9; // 90% para ter uma margem
+            
+            panzoom.zoom(initialScale);
+            panzoom.reset();
+        }, 100);
+    }
+    
+    // Verifica se o SVG já está carregado
+    if (svgObject.contentDocument) {
+        initPanzoom();
+    } else {
+        svgObject.addEventListener('load', initPanzoom);
+    }
+    
+    // Fallback: se após 5 segundos não carregar, esconde o loading
+    setTimeout(() => {
+        if (loadingElement.style.display !== 'none') {
+            loadingElement.style.display = 'none';
+            console.warn('O SVG pode não ter carregado corretamente.');
+        }
+    }, 5000);
+});
+    </script>
 </body>
 </html>
