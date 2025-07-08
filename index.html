@@ -33,6 +33,7 @@
             position: absolute;
             transform-origin: 0 0;
             will-change: transform;
+            background-color: white !important;
         }
         
         #svg-image {
@@ -41,6 +42,7 @@
             width: auto;
             height: auto;
             max-width: none;
+            -webkit-tap-highlight-color: transparent;
         }
         
         .controls {
@@ -72,7 +74,8 @@
 <body>
     <div id="viewer-container">
         <div id="svg-wrapper">
-            <img id="svg-image" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica">
+            <!-- Adicionado SVG inline para garantir fundo branco -->
+            <object id="svg-image" type="image/svg+xml" data="ArvoreGenealogica-bube-ilda-netos.drawio.svg" style="background-color: white !important;"></object>
         </div>
     </div>
 
@@ -85,7 +88,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const wrapper = document.getElementById('svg-wrapper');
-            const image = document.getElementById('svg-image');
+            const svgObject = document.getElementById('svg-image');
             const container = document.getElementById('viewer-container');
             
             let scale = 1;
@@ -93,6 +96,8 @@
             let posY = 0;
             let isDragging = false;
             let startX, startY;
+            let initialDistance = 0;
+            let initialScale = 1;
             
             // Função para aplicar transformações
             function applyTransform() {
@@ -100,23 +105,44 @@
             }
             
             // Centraliza a imagem quando carregada
-            image.onload = function() {
-                // Calcula o zoom inicial para caber na tela
-                const imgRatio = image.naturalWidth / image.naturalHeight;
-                const containerRatio = container.clientWidth / container.clientHeight;
-                
-                if (imgRatio > containerRatio) {
-                    scale = container.clientWidth / image.naturalWidth * 0.95;
-                } else {
-                    scale = container.clientHeight / image.naturalHeight * 0.95;
+            function initialize() {
+                // Acessa o SVG interno
+                const svgDoc = svgObject.contentDocument;
+                if (svgDoc) {
+                    const svg = svgDoc.querySelector('svg');
+                    if (svg) {
+                        // Força fundo branco no SVG
+                        svg.style.backgroundColor = 'white';
+                        
+                        // Calcula o zoom inicial para caber na tela
+                        const viewBox = svg.getAttribute('viewBox') || 
+                                       `${svg.width.baseVal.value} ${svg.height.baseVal.value}`;
+                        const [,,vw,vh] = viewBox.split(' ').map(Number);
+                        
+                        const imgRatio = vw / vh;
+                        const containerRatio = container.clientWidth / container.clientHeight;
+                        
+                        if (imgRatio > containerRatio) {
+                            scale = container.clientWidth / vw * 0.95;
+                        } else {
+                            scale = container.clientHeight / vh * 0.95;
+                        }
+                        
+                        // Centraliza a imagem
+                        posX = (container.clientWidth - vw * scale) / 2;
+                        posY = (container.clientHeight - vh * scale) / 2;
+                        
+                        applyTransform();
+                        return;
+                    }
                 }
                 
-                // Centraliza a imagem
-                posX = (container.clientWidth - image.naturalWidth * scale) / 2;
-                posY = (container.clientHeight - image.naturalHeight * scale) / 2;
-                
-                applyTransform();
-            };
+                // Fallback para object não carregado (usa dimensões padrão)
+                setTimeout(initialize, 100);
+            }
+            
+            // Inicialização
+            svgObject.addEventListener('load', initialize);
             
             // Controles de zoom
             document.getElementById('zoom-in').addEventListener('click', function() {
@@ -128,19 +154,7 @@
             });
             
             document.getElementById('reset').addEventListener('click', function() {
-                const imgRatio = image.naturalWidth / image.naturalHeight;
-                const containerRatio = container.clientWidth / container.clientHeight;
-                
-                if (imgRatio > containerRatio) {
-                    scale = container.clientWidth / image.naturalWidth * 0.95;
-                } else {
-                    scale = container.clientHeight / image.naturalHeight * 0.95;
-                }
-                
-                posX = (container.clientWidth - image.naturalWidth * scale) / 2;
-                posY = (container.clientHeight - image.naturalHeight * scale) / 2;
-                
-                applyTransform();
+                initialize();
             });
             
             // Função de zoom com ponto focal
@@ -183,26 +197,62 @@
                 container.style.cursor = 'grab';
             });
             
-            // Controle de arrastar (pan) com toque
+            // Controle de toque (pan e zoom com pinça)
             container.addEventListener('touchstart', function(e) {
                 if (e.touches.length === 1) {
+                    // Modo arrastar
                     isDragging = true;
                     startX = e.touches[0].clientX - posX;
                     startY = e.touches[0].clientY - posY;
+                    initialDistance = 0;
+                } else if (e.touches.length === 2) {
+                    // Modo zoom com pinça
+                    isDragging = false;
+                    initialDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    initialScale = scale;
                 }
                 e.preventDefault();
             }, { passive: false });
             
             container.addEventListener('touchmove', function(e) {
-                if (!isDragging || e.touches.length !== 1) return;
-                posX = e.touches[0].clientX - startX;
-                posY = e.touches[0].clientY - startY;
-                applyTransform();
+                if (e.touches.length === 1 && isDragging) {
+                    // Arrastar
+                    posX = e.touches[0].clientX - startX;
+                    posY = e.touches[0].clientY - startY;
+                    applyTransform();
+                } else if (e.touches.length === 2) {
+                    // Zoom com pinça
+                    const currentDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    
+                    if (initialDistance > 0) {
+                        const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                        const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                        
+                        const zoomFactor = currentDistance / initialDistance;
+                        scale = initialScale * zoomFactor;
+                        scale = Math.max(0.1, Math.min(scale, 10));
+                        
+                        // Ajusta a posição durante o zoom
+                        const x = (centerX - posX) / initialScale;
+                        const y = (centerY - posY) / initialScale;
+                        posX = centerX - x * scale;
+                        posY = centerY - y * scale;
+                        
+                        applyTransform();
+                    }
+                }
                 e.preventDefault();
             }, { passive: false });
             
             container.addEventListener('touchend', function() {
                 isDragging = false;
+                initialDistance = 0;
             });
             
             // Zoom com roda do mouse
@@ -213,13 +263,13 @@
                 zoom(zoomFactor, e.clientX, e.clientY);
             }, { passive: false });
             
-            // Fallback se a imagem já estiver carregada
-            if (image.complete && image.naturalWidth !== 0) {
-                image.onload();
-            }
-            
             // Inicializa cursor
             container.style.cursor = 'grab';
+            
+            // Fallback se o SVG já estiver carregado
+            if (svgObject.contentDocument && svgObject.contentDocument.querySelector('svg')) {
+                initialize();
+            }
         });
     </script>
 </body>
