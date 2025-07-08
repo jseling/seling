@@ -14,12 +14,9 @@
     <script src="https://unpkg.com/panzoom@9.4.3/dist/panzoom.min.js"></script>
 </head>
 <body>
-    <div id="map-container">
-        <!-- O conteúdo SVG será inserido aqui -->
-    </div>
+    <div id="map-container"></div>
     <script>
-        // Carrega o SVG e aplica pan/zoom
-        fetch('ArvoreGenealogica-bube-ilda-netos.drawio-transp-pagina-min.svg')
+        fetch('ArvoreGenealogica.svg')
             .then(response => response.text())
             .then(svg => {
                 document.getElementById('map-container').innerHTML = svg;
