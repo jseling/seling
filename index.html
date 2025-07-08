@@ -19,7 +19,12 @@
             .then(response => response.text())
             .then(svg => {
                 document.getElementById('map-container').innerHTML = svg;
-                panzoom(document.querySelector('svg'));
+                panzoom(document.querySelector('svg'), {
+                        maxZoom: 15,
+                        minZoom: 1,
+                        bounds: true,
+                        boundsPadding: 0.5
+                    });
             });
     </script>
 </body>
