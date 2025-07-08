@@ -10,13 +10,14 @@
             padding: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
+            background-color: white !important; /* Força fundo branco */
         }
         
         #container {
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background-color: #f0f0f0;
+            background-color: white !important; /* Força fundo branco */
             position: relative;
         }
         
@@ -24,12 +25,16 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
+            touch-action: none; /* Importante para mobile */
+            background-color: white !important; /* Força fundo branco */
         }
         
         #svg-image {
             display: block;
             max-width: none;
             transform-origin: 0 0;
+            background-color: white !important; /* Força fundo branco */
+            position: absolute;
         }
         
         .controls {
@@ -61,7 +66,8 @@
 <body>
     <div id="container">
         <div id="panzoom-container">
-            <img id="svg-image" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica">
+            <!-- Adicionado inline style para garantir fundo branco -->
+            <img id="svg-image" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica" style="background-color: white !important;">
         </div>
         
         <div class="controls">
@@ -71,16 +77,25 @@
         </div>
     </div>
 
-    <!-- Usando a biblioteca panzoom recomendada -->
+    <!-- Usando a biblioteca panzoom com fallback local -->
     <script src="https://cdn.jsdelivr.net/npm/panzoom@9.4.3/dist/panzoom.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const image = document.getElementById('svg-image');
             const container = document.getElementById('panzoom-container');
+            const mainContainer = document.getElementById('container');
             
             // Configuração inicial quando a imagem carregar
             image.onload = function() {
-                // Inicializa o panzoom
+                // Força fundo branco no SVG (se for vetor)
+                if (image.contentDocument) {
+                    const svg = image.contentDocument.querySelector('svg');
+                    if (svg) {
+                        svg.style.backgroundColor = 'white';
+                    }
+                }
+                
+                // Inicializa o panzoom com configurações robustas
                 const instance = panzoom(image, {
                     maxZoom: 10,
                     minZoom: 0.1,
@@ -88,19 +103,28 @@
                     bounds: true,
                     boundsPadding: 0.1,
                     smoothScroll: false,
-                    // Configurações para melhor experiência em mobile
-                    beforeWheel: function(e) {
-                        // Você deve estar sobre a imagem para zoom com roda
-                        const shouldIgnore = !e.target.contains(image);
-                        return !shouldIgnore;
-                    },
+                    // Configurações para desktop
                     beforeMouseDown: function(e) {
-                        // Você pode clicar na imagem para arrastar
+                        // Permite arrastar apenas quando clicar na imagem
                         return e.target === image;
+                    },
+                    // Configurações para mobile
+                    beforeTouchStart: function(e) {
+                        // Permite toque apenas na imagem
+                        return e.target === image;
+                    },
+                    // Configurações para zoom com roda
+                    beforeWheel: function(e) {
+                        // Permite zoom com roda em qualquer lugar
+                        return true;
+                    },
+                    filterKey: function() {
+                        // Permite todos os eventos de teclado
+                        return true;
                     }
                 });
                 
-                // Ajusta o zoom inicial para caber na tela
+                // Ajusta o zoom inicial para caber na tela e centralizar
                 setTimeout(() => {
                     const imgRatio = image.naturalWidth / image.naturalHeight;
                     const containerRatio = container.clientWidth / container.clientHeight;
@@ -112,7 +136,12 @@
                         initialZoom = container.clientHeight / image.naturalHeight * 0.95;
                     }
                     
-                    instance.zoomTo(container.clientWidth/2, container.clientHeight/2, initialZoom);
+                    // Centraliza a imagem
+                    const initialX = (container.clientWidth - image.naturalWidth * initialZoom) / 2;
+                    const initialY = (container.clientHeight - image.naturalHeight * initialZoom) / 2;
+                    
+                    instance.moveTo(initialX, initialY);
+                    instance.zoomAbs(container.clientWidth/2, container.clientHeight/2, initialZoom);
                 }, 100);
                 
                 // Configura os controles
@@ -135,14 +164,37 @@
                         resetZoom = container.clientHeight / image.naturalHeight * 0.95;
                     }
                     
-                    instance.smoothZoom(container.clientWidth/2, container.clientHeight/2, resetZoom);
+                    const resetX = (container.clientWidth - image.naturalWidth * resetZoom) / 2;
+                    const resetY = (container.clientHeight - image.naturalHeight * resetZoom) / 2;
+                    
+                    instance.moveTo(resetX, resetY);
+                    instance.zoomAbs(container.clientWidth/2, container.clientHeight/2, resetZoom);
                 });
+                
+                // Correção para desktop - garante que os eventos são capturados
+                container.addEventListener('mousedown', function(e) {
+                    if (e.target === container) {
+                        e.preventDefault();
+                    }
+                });
+                
+                // Correção para mobile
+                container.addEventListener('touchstart', function(e) {
+                    if (e.target === container) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
             };
             
             // Previne o comportamento padrão de arrastar imagens
             image.addEventListener('dragstart', function(e) {
                 e.preventDefault();
             });
+            
+            // Fallback se a imagem já estiver carregada
+            if (image.complete && image.naturalWidth !== 0) {
+                image.onload();
+            }
         });
     </script>
 </body>
