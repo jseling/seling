@@ -26,11 +26,13 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            touch-action: none;
         }
         
         #svg-content {
             width: 100%;
             height: 100%;
+            touch-action: none;
         }
         
         .controls {
@@ -62,7 +64,8 @@
 <body>
     <div id="container">
         <div id="svg-container">
-            <object id="svg-content" type="image/svg+xml" data="ArvoreGenealogica-bube-ilda-netos.drawio.svg"></object>
+            <!-- Usando embed que geralmente tem melhor suporte para SVG -->
+            <embed id="svg-content" type="image/svg+xml" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg"/>
         </div>
         
         <div class="controls">
@@ -72,19 +75,26 @@
         </div>
     </div>
 
-    <!-- Usando versão mais recente e estável do panzoom -->
-    <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+    <!-- Usando versão estável do panzoom com fallback local -->
+    <script src="https://cdn.jsdelivr.net/npm/panzoom@9.4.3/dist/panzoom.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const svgObject = document.getElementById('svg-content');
+            const svgEmbed = document.getElementById('svg-content');
             const container = document.getElementById('container');
             const svgContainer = document.getElementById('svg-container');
+            let panzoomInstance = null;
             
             function initPanzoom() {
                 try {
-                    const svgDoc = svgObject.contentDocument;
+                    // Verifica se o SVG está completamente carregado
+                    if (!svgEmbed.getSVGDocument || !svgEmbed.getSVGDocument()) {
+                        setTimeout(initPanzoom, 100);
+                        return;
+                    }
+                    
+                    const svgDoc = svgEmbed.getSVGDocument();
                     if (!svgDoc) {
-                        console.error('Não foi possível acessar o conteúdo SVG');
+                        console.error('Documento SVG não encontrado');
                         return;
                     }
                     
@@ -94,45 +104,54 @@
                         return;
                     }
                     
-                    // Configura o SVG para ocupar todo o espaço necessário
+                    // Garante que o SVG está no DOM
+                    if (!document.body.contains(svgEmbed)) {
+                        console.error('Elemento SVG não está no DOM');
+                        return;
+                    }
+                    
+                    // Configura o SVG
                     svgElement.style.maxWidth = 'none';
                     svgElement.style.maxHeight = 'none';
                     svgElement.style.width = '100%';
                     svgElement.style.height = '100%';
                     
-                    // Cria a instância do panzoom
-                    const panzoom = Panzoom(svgElement, {
+                    // Inicializa o Panzoom
+                    panzoomInstance = panzoom(svgElement, {
                         maxScale: 10,
                         minScale: 0.1,
                         duration: 200,
                         easing: 'ease-out',
                         contain: 'outside',
                         startScale: 1,
-                        touchAction: 'none'
+                        touchAction: 'none',
+                        beforeWheel: function(e) {
+                            // Permite zoom com roda do mouse apenas quando o SVG está em foco
+                            return e.target === svgContainer || svgContainer.contains(e.target);
+                        }
                     });
                     
-                    // Adiciona eventos de zoom com a roda do mouse
+                    // Configura eventos de zoom com roda do mouse
                     svgContainer.addEventListener('wheel', function(e) {
-                        // Previne o scroll da página
                         e.preventDefault();
-                        panzoom.zoomWithWheel(e);
-                    });
+                        panzoomInstance.zoomWithWheel(e);
+                    }, { passive: false });
                     
                     // Configura os botões de controle
                     document.getElementById('zoom-in').addEventListener('click', function() {
-                        panzoom.zoom(1.2, { animate: true });
+                        panzoomInstance.zoom(1.2, { animate: true });
                     });
                     
                     document.getElementById('zoom-out').addEventListener('click', function() {
-                        panzoom.zoom(0.8, { animate: true });
+                        panzoomInstance.zoom(0.8, { animate: true });
                     });
                     
                     document.getElementById('reset').addEventListener('click', function() {
-                        panzoom.reset({ animate: true });
+                        panzoomInstance.reset({ animate: true });
                     });
                     
-                    // Ajusta o zoom inicial para caber na tela
-                    setTimeout(() => {
+                    // Ajusta o zoom inicial
+                    setTimeout(function() {
                         const svgRect = svgElement.getBoundingClientRect();
                         const containerRect = container.getBoundingClientRect();
                         
@@ -140,17 +159,19 @@
                         const scaleY = containerRect.height / svgRect.height;
                         const initialScale = Math.min(scaleX, scaleY) * 0.9;
                         
-                        panzoom.zoom(initialScale);
-                        panzoom.pan(0, 0);
-                    }, 100);
+                        panzoomInstance.zoom(initialScale);
+                        panzoomInstance.moveTo(0, 0);
+                    }, 200);
                     
                 } catch (error) {
                     console.error('Erro ao inicializar panzoom:', error);
+                    // Tenta novamente após um curto intervalo
+                    setTimeout(initPanzoom, 200);
                 }
             }
             
-            // Inicializa quando o SVG estiver carregado
-            svgObject.addEventListener('load', initPanzoom);
+            // Inicia quando o SVG estiver carregado
+            svgEmbed.addEventListener('load', initPanzoom);
             
             // Fallback para caso o evento load não dispare
             setTimeout(initPanzoom, 1000);
