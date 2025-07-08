@@ -9,7 +9,6 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            touch-action: none;
             font-family: Arial, sans-serif;
         }
         
@@ -21,19 +20,16 @@
             position: relative;
         }
         
-        #svg-wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
+        #panzoom-container {
             width: 100%;
             height: 100%;
             overflow: hidden;
         }
         
-        #svg-content {
-            position: absolute;
+        #svg-image {
+            display: block;
+            max-width: none;
             transform-origin: 0 0;
-            will-change: transform;
         }
         
         .controls {
@@ -64,9 +60,8 @@
 </head>
 <body>
     <div id="container">
-        <div id="svg-wrapper">
-            <!-- Usando img para SVG que é mais compatível -->
-            <img id="svg-content" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica">
+        <div id="panzoom-container">
+            <img id="svg-image" src="ArvoreGenealogica-bube-ilda-netos.drawio.svg" alt="Árvore Genealógica">
         </div>
         
         <div class="controls">
@@ -76,140 +71,78 @@
         </div>
     </div>
 
+    <!-- Usando a biblioteca panzoom recomendada -->
+    <script src="https://cdn.jsdelivr.net/npm/panzoom@9.4.3/dist/panzoom.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const svgImage = document.getElementById('svg-content');
-            const container = document.getElementById('container');
-            const wrapper = document.getElementById('svg-wrapper');
+            const image = document.getElementById('svg-image');
+            const container = document.getElementById('panzoom-container');
             
-            let scale = 1;
-            let posX = 0;
-            let posY = 0;
-            let isDragging = false;
-            let startX, startY;
-            
-            // Função para aplicar transformações
-            function applyTransform() {
-                svgImage.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
-            }
-            
-            // Ajusta o zoom inicial quando a imagem carregar
-            svgImage.onload = function() {
-                // Calcula o zoom inicial para caber na tela
-                const imgRatio = svgImage.naturalWidth / svgImage.naturalHeight;
-                const containerRatio = container.clientWidth / container.clientHeight;
+            // Configuração inicial quando a imagem carregar
+            image.onload = function() {
+                // Inicializa o panzoom
+                const instance = panzoom(image, {
+                    maxZoom: 10,
+                    minZoom: 0.1,
+                    initialZoom: 1,
+                    bounds: true,
+                    boundsPadding: 0.1,
+                    smoothScroll: false,
+                    // Configurações para melhor experiência em mobile
+                    beforeWheel: function(e) {
+                        // Você deve estar sobre a imagem para zoom com roda
+                        const shouldIgnore = !e.target.contains(image);
+                        return !shouldIgnore;
+                    },
+                    beforeMouseDown: function(e) {
+                        // Você pode clicar na imagem para arrastar
+                        return e.target === image;
+                    }
+                });
                 
-                if (imgRatio > containerRatio) {
-                    scale = container.clientWidth / svgImage.naturalWidth * 0.9;
-                } else {
-                    scale = container.clientHeight / svgImage.naturalHeight * 0.9;
-                }
+                // Ajusta o zoom inicial para caber na tela
+                setTimeout(() => {
+                    const imgRatio = image.naturalWidth / image.naturalHeight;
+                    const containerRatio = container.clientWidth / container.clientHeight;
+                    
+                    let initialZoom;
+                    if (imgRatio > containerRatio) {
+                        initialZoom = container.clientWidth / image.naturalWidth * 0.95;
+                    } else {
+                        initialZoom = container.clientHeight / image.naturalHeight * 0.95;
+                    }
+                    
+                    instance.zoomTo(container.clientWidth/2, container.clientHeight/2, initialZoom);
+                }, 100);
                 
-                // Centraliza a imagem
-                posX = (container.clientWidth - svgImage.naturalWidth * scale) / 2;
-                posY = (container.clientHeight - svgImage.naturalHeight * scale) / 2;
+                // Configura os controles
+                document.getElementById('zoom-in').addEventListener('click', function() {
+                    instance.smoothZoom(container.clientWidth/2, container.clientHeight/2, 1.2);
+                });
                 
-                applyTransform();
+                document.getElementById('zoom-out').addEventListener('click', function() {
+                    instance.smoothZoom(container.clientWidth/2, container.clientHeight/2, 0.8);
+                });
+                
+                document.getElementById('reset').addEventListener('click', function() {
+                    const imgRatio = image.naturalWidth / image.naturalHeight;
+                    const containerRatio = container.clientWidth / container.clientHeight;
+                    
+                    let resetZoom;
+                    if (imgRatio > containerRatio) {
+                        resetZoom = container.clientWidth / image.naturalWidth * 0.95;
+                    } else {
+                        resetZoom = container.clientHeight / image.naturalHeight * 0.95;
+                    }
+                    
+                    instance.smoothZoom(container.clientWidth/2, container.clientHeight/2, resetZoom);
+                });
             };
             
-            // Controles de zoom
-            document.getElementById('zoom-in').addEventListener('click', function() {
-                scale *= 1.2;
-                applyTransform();
-            });
-            
-            document.getElementById('zoom-out').addEventListener('click', function() {
-                scale /= 1.2;
-                applyTransform();
-            });
-            
-            document.getElementById('reset').addEventListener('click', function() {
-                // Retorna ao zoom inicial
-                const imgRatio = svgImage.naturalWidth / svgImage.naturalHeight;
-                const containerRatio = container.clientWidth / container.clientHeight;
-                
-                if (imgRatio > containerRatio) {
-                    scale = container.clientWidth / svgImage.naturalWidth * 0.9;
-                } else {
-                    scale = container.clientHeight / svgImage.naturalHeight * 0.9;
-                }
-                
-                posX = (container.clientWidth - svgImage.naturalWidth * scale) / 2;
-                posY = (container.clientHeight - svgImage.naturalHeight * scale) / 2;
-                
-                applyTransform();
-            });
-            
-            // Controle de arrastar (pan)
-            wrapper.addEventListener('mousedown', function(e) {
-                if (e.button !== 0) return; // Apenas botão esquerdo
-                isDragging = true;
-                startX = e.clientX - posX;
-                startY = e.clientY - posY;
-                wrapper.style.cursor = 'grabbing';
-            });
-            
-            document.addEventListener('mousemove', function(e) {
-                if (!isDragging) return;
-                posX = e.clientX - startX;
-                posY = e.clientY - startY;
-                applyTransform();
-            });
-            
-            document.addEventListener('mouseup', function() {
-                isDragging = false;
-                wrapper.style.cursor = 'grab';
-            });
-            
-            // Suporte para touch
-            wrapper.addEventListener('touchstart', function(e) {
-                if (e.touches.length === 1) {
-                    isDragging = true;
-                    startX = e.touches[0].clientX - posX;
-                    startY = e.touches[0].clientY - posY;
-                }
+            // Previne o comportamento padrão de arrastar imagens
+            image.addEventListener('dragstart', function(e) {
                 e.preventDefault();
-            }, { passive: false });
-            
-            document.addEventListener('touchmove', function(e) {
-                if (!isDragging || e.touches.length !== 1) return;
-                posX = e.touches[0].clientX - startX;
-                posY = e.touches[0].clientY - startY;
-                applyTransform();
-                e.preventDefault();
-            }, { passive: false });
-            
-            document.addEventListener('touchend', function() {
-                isDragging = false;
             });
-            
-            // Zoom com roda do mouse
-            wrapper.addEventListener('wheel', function(e) {
-                e.preventDefault();
-                const delta = -e.deltaY;
-                
-                // Calcula a posição do mouse relativa à imagem
-                const rect = wrapper.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                
-                // Calcula as coordenadas antes do zoom
-                const x = (mouseX - posX) / scale;
-                const y = (mouseY - posY) / scale;
-                
-                // Aplica o zoom
-                const zoomFactor = delta > 0 ? 1.1 : 0.9;
-                scale *= zoomFactor;
-                
-                // Limita o zoom
-                scale = Math.max(0.1, Math.min(scale, 10));
-                
-                // Ajusta a posição para zoom no ponto do mouse
-                posX = mouseX - x * scale;
-                posY = mouseY - y * scale;
-                
-                applyTransform();
-            }, { passive: false });
         });
     </script>
 </body>
