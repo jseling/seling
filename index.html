@@ -1,56 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Árvore Genealógica</title>
+    <title>Arvore genealógica</title> 
     <style>
         body { margin: 0; overflow: hidden; }
         #map-container { width: 100vw; height: 100vh; }
-        svg { width: 100%; height: 100%; display: block; }
+        svg { width: 100%; height: 100%; }
     </style>
     <script src="https://unpkg.com/panzoom@9.4.3/dist/panzoom.min.js"></script>
 </head>
 <body>
     <div id="map-container">
-        <!-- SVG será inserido aqui -->
+        <!-- O conteúdo SVG será inserido aqui -->
     </div>
-
     <script>
+        // Carrega o SVG e aplica pan/zoom
         fetch('ArvoreGenealogica-bube-ilda-netos.drawio.svg')
             .then(response => response.text())
-            .then(svgText => {
-                const container = document.getElementById('map-container');
-                container.innerHTML = svgText;
-
-                const svg = container.querySelector('svg');
-
-                // Espera o carregamento completo do SVG
-                requestAnimationFrame(() => {
-                    const svgBBox = svg.getBBox();
-                    const containerRect = container.getBoundingClientRect();
-
-                    const zoomToFit = Math.min(
-                        containerRect.width / svgBBox.width,
-                        containerRect.height / svgBBox.height
-                    );
-
-                    const instance = panzoom(svg, {
-                        maxZoom: 5,
-                        minZoom: zoomToFit,
-                        bounds: true,
-                        boundsPadding: 0.1,
-                        zoomDoubleClickSpeed: 1,
-                        beforeWheel: e => true,
-                        beforeMouseDown: e => true,
-                    });
-
-                    // Posiciona no centro e aplica o zoom inicial mínimo
-                    instance.zoomTo(0, 0, zoomToFit);
-
-                    // Centraliza a imagem
-                    const dx = (containerRect.width - svgBBox.width * zoomToFit) / 2;
-                    const dy = (containerRect.height - svgBBox.height * zoomToFit) / 2;
-                    instance.moveTo(dx, dy);
-                });
+            .then(svg => {
+                document.getElementById('map-container').innerHTML = svg;
+                panzoom(document.querySelector('svg'));
             });
     </script>
 </body>
